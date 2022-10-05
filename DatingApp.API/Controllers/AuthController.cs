@@ -8,6 +8,8 @@ using DatingApp.API.DTOs;
 using DatingApp.API.Data;
 using System.Security.Cryptography;
 using System.Text;
+using DatingApp.API.Services;
+using Microsoft.AspNetCore.Authorization;
 
 namespace DatingApp.API.Controllers
 {
@@ -16,10 +18,12 @@ namespace DatingApp.API.Controllers
     public class AuthController : BaseController
     {
         private readonly DataContext _context;
+        private readonly ITokenService _tokenService;
 
-        public AuthController(DataContext context)
+        public AuthController(DataContext context, ITokenService tokenService)
         {
             _context = context;
+            _tokenService = tokenService;
         }
         [HttpPost("register")]
         public IActionResult Register([FromBody] AuthUserDto authUserDto)
@@ -40,11 +44,42 @@ namespace DatingApp.API.Controllers
             
             _context.AppUsers.Add(newUser);
             _context.SaveChanges();
-            return Ok(newUser.Username);
+            var token = _tokenService.CreateToken(newUser.Username);
+            return Ok(token);
         }
         [HttpPost("login")]
-        public void Login([FromBody] string value)
+        public IActionResult Login([FromBody] AuthUserDto authUserDto)
         {
+            authUserDto.Username = authUserDto.Username.ToLower();
+            var currentUser = _context.AppUsers
+                .FirstOrDefault(u => u.Username == authUserDto.Username);
+           
+            if (currentUser == null)
+            {
+                return Unauthorized("Username is invalid.");
+            }
+ 
+            using var hmac = new HMACSHA512(currentUser.PasswordSalt);
+            var passwordBytes = hmac.ComputeHash(Encoding.UTF8.GetBytes(authUserDto.Password));
+            for (int i = 0; i < currentUser.PasswordHash.Length; i++)
+            {
+                if (currentUser.PasswordHash[i] != passwordBytes[i])
+                {
+                    return Unauthorized("Password is invalid.");
+                }
+            }
+
+            var token = _tokenService.CreateToken(currentUser.Username);
+
+
+            return Ok(token);
+        }
+        
+        [Authorize]
+        [HttpGet]
+        public IActionResult Get()
+        {
+            return Ok(_context.AppUsers.ToList());
         }
     }
 }
