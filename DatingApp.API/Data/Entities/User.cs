@@ -23,6 +23,7 @@ namespace DatingApp.API.Data.Entities
         public byte[] PasswordHash {get; set;}
         public byte[] PasswordSalt {get; set;}
         public DateTime DateOfBirth{get; set;}
+        public int Age {get; set;}
         [MaxLength(32)]
         public string KnownAs {get; set;}
         [MaxLength(6)]
